@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard | SentinelAI Analytics{% endblock %}
+
+{% block extra_css %}
+<style>
+  .dashboard-container { padding: 40px 5%; }
+  .placeholder-card {
+    background: rgba(43, 0, 102, 0.03);
+    border: 2px dashed rgba(43, 0, 102, 0.1);
+    border-radius: var(--radius-xl);
+    padding: 60px 40px;
+    text-align: center;
+    color: var(--text-muted);
+    margin-bottom: 40px;
+  }
+  .comparison-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 30px;
+  }
+  .chart-card {
+    background: white;
+    padding: 30px;
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-soft);
+    border: 1px solid var(--glass-border);
+  }
+  .chart-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--primary);
+    margin-bottom: 20px;
+  }
+  .audit-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin-bottom: 40px;
+  }
+  @media (max-width: 768px) { .comparison-grid { grid-template-columns: 1fr; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+  <div class="page-header" style="margin-bottom: 40px;">
+    <h1 style="font-family: var(--font-display); font-size: 32px; font-weight: 800; color: var(--primary);">System Audit Dashboard</h1>
+    <p style="color: var(--text-soft);">Performance comparison and integrity analytics.</p>
+  </div>
+
+  {% if not has_model %}
+  <div class="placeholder-card">
+    <i class="fas fa-chart-line" style="font-size: 50px; margin-bottom: 20px; opacity: 0.3;"></i>
+    <h2>Waiting for Model Audit Data</h2>
+    <p>Upload your AI model and dataset in the <b>Model</b> section to generate comparison analytics.</p>
+    
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-top: 50px;">
+        <div style="text-align: left; padding: 20px; border: 1px solid rgba(0,0,0,0.05); border-radius: 12px;">
+            <h4 style="color: var(--primary); margin-bottom: 10px;">Model Comparison</h4>
+            <p style="font-size: 13px;">Shows how accuracy improved after the autonomous repair cycle.</p>
+        </div>
+        <div style="text-align: left; padding: 20px; border: 1px solid rgba(0,0,0,0.05); border-radius: 12px;">
+            <h4 style="color: var(--primary); margin-bottom: 10px;">Drift Evolution</h4>
+            <p style="font-size: 13px;">Visualizes the gap between training distribution and operational data.</p>
+        </div>
+        <div style="text-align: left; padding: 20px; border: 1px solid rgba(0,0,0,0.05); border-radius: 12px;">
+            <h4 style="color: var(--primary); margin-bottom: 10px;">Risk Trending</h4>
+            <p style="font-size: 13px;">Tracks confidence levels before and after the repair strategy.</p>
+        </div>
+    </div>
+  </div>
+  {% else %}
+  
+  <div class="audit-summary">
+    <div class="chart-card" style="border-bottom: 4px solid #EF4444;">
+        <span style="font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Drifted Accuracy</span>
+        <div style="font-size: 28px; font-weight: 800; color: var(--primary); margin-top: 5px;">{{ results.risk.accuracy }}%</div>
+    </div>
+    <div class="chart-card" style="border-bottom: 4px solid #10B981;">
+        <span style="font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Repaired Accuracy</span>
+        <div style="font-size: 28px; font-weight: 800; color: #10B981; margin-top: 5px;">
+            {% if results.is_retrained %}{{ results.new_accuracy * 100 }}%{% else %}N/A{% endif %}
+        </div>
+    </div>
+    <div class="chart-card" style="border-bottom: 4px solid var(--accent);">
+        <span style="font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Risk Score</span>
+        <div style="font-size: 28px; font-weight: 800; color: var(--accent); margin-top: 5px;">{{ results.risk.risk_level }}</div>
+    </div>
+  </div>
+
+  <div class="comparison-grid">
+    <div class="chart-card">
+        <h3 class="chart-title">Model Performance Comparison</h3>
+        <div id="acc-comparison"></div>
+    </div>
+    <div class="chart-card">
+        <h3 class="chart-title">Drift Matrix</h3>
+        <div id="drift-bar"></div>
+    </div>
+  </div>
+
+  <div class="chart-card" style="margin-top: 30px;">
+    <h3 class="chart-title">Integrity Verification Progress</h3>
+    <div id="progress-line"></div>
+  </div>
+
+  <!-- STORES DATA FOR JS TO AVOID LINT ERRORS -->
+  <div id="audit-data" 
+    data-accuracy="{{ results.risk.accuracy }}" 
+    data-drift="{{ results.risk.drift_percentage }}" 
+    data-retrained="{{ results.is_retrained }}" 
+    data-new-accuracy="{{ results.new_accuracy * 100 if results.is_retrained else 0 }}" 
+    style="display: none;">
+  </div>
+
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% if has_model %}
+<script>
+  // Read data from hidden element to fix IDE syntax errors
+  const auditEl = document.getElementById('audit-data');
+  const acc = parseFloat(auditEl.dataset.accuracy);
+  const drift = parseFloat(auditEl.dataset.drift);
+  const isRetrained = auditEl.dataset.retrained === "True";
+  const newAcc = parseFloat(auditEl.dataset.newAccuracy);
+
+  const accData = [{
+    x: ['Initial Model', 'SentinelAI Repaired'],
+    y: [acc, isRetrained ? newAcc : 0],
+    type: 'bar',
+    marker: { color: ['#EF4444', '#10B981'] }
+  }];
+  Plotly.newPlot('acc-comparison', accData, { 
+    margin: { t: 0, r: 10, b: 40, l: 40 },
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor: 'rgba(0,0,0,0)'
+  });
+
+  const driftData = [{
+    values: [drift, 100 - drift],
+    labels: ['Drifted Data', 'Healthy Matches'],
+    type: 'pie',
+    hole: 0.5,
+    marker: { colors: ['#EF4444', '#E6D8FF'] }
+  }];
+  Plotly.newPlot('drift-bar', driftData, { margin: { t: 0, r: 0, b: 0, l: 0 }, showlegend: true });
+
+  const progressData = [{
+    x: ['Entry', 'Audit', 'Retrain'],
+    y: [0, acc, isRetrained ? newAcc : acc],
+    mode: 'lines+markers',
+    line: { color: '#7C3AED', width: 4 }
+  }];
+  Plotly.newPlot('progress-line', progressData, { margin: { t: 20, r: 0, b: 40, l: 40 }, paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)' });
+</script>
+{% endif %}
+{% endblock %}

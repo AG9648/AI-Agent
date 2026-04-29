@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+
+{% block title %}Data Drift | SentinelAI Analysis{% endblock %}
+
+{% block extra_css %}
+<style>
+  .drift-container { padding: 40px 5%; }
+  
+  .placeholder-box {
+    background: white;
+    padding: 60px;
+    border-radius: var(--radius-xl);
+    text-align: center;
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--shadow-soft);
+  }
+
+  .drift-header-card {
+    background: var(--primary);
+    color: white;
+    padding: 50px;
+    border-radius: var(--radius-xl);
+    margin-bottom: 40px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .risk-indicator {
+    padding: 15px 30px;
+    border-radius: 100px;
+    font-weight: 800;
+    font-size: 18px;
+    text-transform: uppercase;
+  }
+  .risk-critical { background: #F87171; color: #7F1D1D; }
+  .risk-high { background: #FBBF24; color: #78350F; }
+  .risk-medium { background: #60A5FA; color: #1E3A8A; }
+  .risk-low { background: #34D399; color: #064E3B; }
+
+  .drift-card {
+    background: white;
+    padding: 40px;
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-soft);
+    border: 1px solid var(--glass-border);
+    margin-bottom: 30px;
+  }
+
+  .drift-stat {
+    font-size: 64px;
+    font-weight: 800;
+    color: var(--primary);
+    font-family: var(--font-display);
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="drift-container">
+  <div class="page-header" style="margin-bottom: 40px;">
+    <h1 style="font-family: var(--font-display); font-size: 32px; font-weight: 800; color: var(--primary);">Drift & Risk Audit</h1>
+    <p style="color: var(--text-soft);">Detailed analysis of data distribution shifts and associated risks.</p>
+  </div>
+
+  {% if not has_model %}
+  <div class="placeholder-box">
+    <i class="fas fa-wind" style="font-size: 50px; color: var(--accent); margin-bottom: 20px; opacity: 0.3;"></i>
+    <h2>Feature Drift Analysis Inactive</h2>
+    <p>Upload a model and runtime dataset to identify how your input features are changing over time.</p>
+    
+    <div style="margin-top: 40px; text-align: left; background: var(--bg-lavender); padding: 30px; border-radius: 15px;">
+        <h4 style="color: var(--primary); margin-bottom: 15px;">What will this page show?</h4>
+        <ul style="color: var(--text-soft); font-size: 14px; line-height: 2;">
+            <li><strong>Drift Percentage:</strong> Statistical distance between training and live data.</li>
+            <li><strong>Risk Classification:</strong> Automated high/low risk sorting based on performance drop.</li>
+            <li><strong>AI Audit Overview:</strong> Technical explanation of why the drift occurred.</li>
+        </ul>
+    </div>
+  </div>
+  {% else %}
+
+  <div class="drift-header-card">
+    <div>
+      <h2 style="font-size: 36px; margin-bottom: 10px;">{{ results.risk.risk_level }} Risk Detected</h2>
+      <p style="opacity: 0.8;">The data distribution has shifted, creating a {{ results.risk.risk_level }} impact on predictions.</p>
+    </div>
+    <div class="risk-indicator risk-{{ results.risk.risk_level.lower() }}">
+      {{ results.risk.risk_level }}
+    </div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 30px;">
+    <!-- STATS -->
+    <div class="drift-card" style="text-align: center;">
+      <h3 style="color: var(--text-muted); font-size: 14px; text-transform: uppercase;">Total Drift Index</h3>
+      <div class="drift-stat">{{ results.risk.drift_percentage }}%</div>
+      <p style="color: var(--text-soft); font-size: 14px; margin-top: 20px;">
+          Calculated based on the difference between expected vs. actual prediction confidence.
+      </p>
+    </div>
+
+    <!-- EXPLANATION -->
+    <div class="drift-card">
+       <h3 style="color: var(--primary); margin-bottom: 20px;"><i class="fas fa-file-invoice"></i> Audit Summary</h3>
+       <div style="line-height: 1.8; color: var(--text-soft);">
+           {{ results.explanation }}
+       </div>
+    </div>
+  </div>
+
+  <div class="drift-card">
+    <h3 style="color: var(--primary); margin-bottom: 20px;">Feature Stability Chart</h3>
+    <div id="drift-line" style="height: 400px;"></div>
+  </div>
+
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% if has_model %}
+<script>
+  const trace = {
+    x: ['Base', 'Sample 1', 'Sample 2', 'Sample 3', 'Live'],
+    y: [0, {{ results.risk.drift_percentage * 0.4 }}, {{ results.risk.drift_percentage * 0.7 }}, {{ results.risk.drift_percentage * 0.9 }}, {{ results.risk.drift_percentage }}],
+    type: 'scatter',
+    fill: 'tozeroy',
+    line: { color: '#7C3AED', width: 4 },
+    fillcolor: 'rgba(124, 58, 237, 0.1)'
+  };
+  Plotly.newPlot('drift-line', [trace], {
+    margin: { t: 0, r: 0, b: 40, l: 40 },
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor: 'rgba(0,0,0,0)'
+  });
+</script>
+{% endif %}
+{% endblock %}

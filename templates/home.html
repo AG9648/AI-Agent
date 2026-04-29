@@ -1,0 +1,336 @@
+{% extends "base.html" %}
+
+{% block title %}Home | SentinelAI Governance{% endblock %}
+
+{% block extra_css %}
+<style>
+  /* ===== HERO SECTION ===== */
+  .hero {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    padding: 30px 5% 40px !important;
+    gap: 40px !important;
+    position: relative;
+    max-width: 1400px;
+    margin: 0 auto;
+    width: 100%;
+    min-height: 60vh;
+    box-sizing: border-box;
+  }
+
+  .hero-content {
+    flex: 0 0 48% !important;
+    width: 48% !important;
+    max-width: 48% !important;
+    min-width: 0 !important;
+    opacity: 0;
+    transform: translateX(-30px);
+    animation: fadeInUp 0.8s forwards 0.2s;
+    text-align: left;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center;
+    box-sizing: border-box;
+  }
+
+  .hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background: linear-gradient(135deg, rgba(124, 58, 237, 0.15) 0%, rgba(124, 58, 237, 0.05) 100%);
+    padding: 12px 24px;
+    border-radius: 100px;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--accent);
+    margin-bottom: 20px;
+    border: 1px solid rgba(124, 58, 237, 0.25);
+    width: fit-content;
+    box-shadow: 0 4px 12px rgba(124, 58, 237, 0.1);
+  }
+
+  .hero-title {
+    font-family: var(--font-display);
+    font-size: clamp(36px, 5vw, 72px);
+    font-weight: 800;
+    line-height: 1.05;
+    color: var(--primary);
+    margin-bottom: 18px;
+    letter-spacing: -2px;
+    background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .hero-desc {
+    font-size: 19px;
+    color: var(--text-soft);
+    margin-bottom: 30px;
+    line-height: 1.7;
+    font-weight: 400;
+    max-width: 90%;
+  }
+
+  .hero-btns {
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+  }
+
+  .hero-btns .btn {
+    padding: 14px 32px;
+    font-size: 16px;
+  }
+
+  .hero-image {
+    flex: 0 0 48% !important;
+    width: 48% !important;
+    max-width: 48% !important;
+    min-width: 0 !important;
+    display: flex !important;
+    justify-content: center;
+    align-items: center;
+    opacity: 0;
+    transform: translateX(30px);
+    animation: fadeInUp 0.8s forwards 0.4s;
+    position: relative;
+    box-sizing: border-box;
+  }
+
+  .hero-image img {
+    width: 100%;
+    max-width: 600px;
+    height: auto;
+    border-radius: 28px;
+    z-index: 2;
+    box-shadow: 0 25px 60px rgba(43, 0, 102, 0.2), 0 0 0 1px rgba(124, 58, 237, 0.1);
+    transition: var(--transition);
+  }
+
+  .hero-image img:hover {
+    transform: translateY(-10px) scale(1.02);
+    box-shadow: 0 30px 70px rgba(43, 0, 102, 0.25), 0 0 0 1px rgba(124, 58, 237, 0.2);
+  }
+
+  .hero-image::after {
+    content: '';
+    position: absolute;
+    width: 120%; height: 120%;
+    background: radial-gradient(circle, rgba(124, 58, 237, 0.2) 0%, transparent 70%);
+    z-index: 1;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    animation: pulse 4s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 0.5; transform: translate(-50%, -50%) scale(1); }
+    50% { opacity: 0.8; transform: translate(-50%, -50%) scale(1.05); }
+  }
+
+  /* Animations */
+  @keyframes fadeInUp {
+    to {
+      opacity: 1;
+      transform: translate(0, 0);
+    }
+  }
+
+  /* ===== FEATURES SECTION ===== */
+  .features {
+    padding: 60px 5% 80px;
+    max-width: 1400px;
+    margin: 0 auto;
+    text-align: center;
+  }
+
+  .section-label {
+    display: inline-block;
+    background: linear-gradient(135deg, rgba(124, 58, 237, 0.15) 0%, rgba(124, 58, 237, 0.05) 100%);
+    padding: 10px 24px;
+    border-radius: 100px;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--accent);
+    margin-bottom: 20px;
+    border: 1px solid rgba(124, 58, 237, 0.25);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+
+  .section-title {
+    font-family: var(--font-display);
+    font-size: clamp(32px, 4vw, 52px);
+    font-weight: 800;
+    color: var(--primary);
+    margin-bottom: 40px;
+    letter-spacing: -1.5px;
+    background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .feature-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 32px;
+    margin-top: 20px;
+  }
+
+  .f-card {
+    background: var(--glass-white);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-xl);
+    padding: 48px 36px;
+    box-shadow: var(--shadow-soft);
+    transition: all var(--transition);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .f-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, var(--accent) 0%, var(--primary) 100%);
+    opacity: 0;
+    transition: opacity var(--transition);
+  }
+
+  .f-card:hover {
+    transform: translateY(-8px);
+    box-shadow: var(--shadow-hover);
+    border-color: rgba(124, 58, 237, 0.3);
+  }
+
+  .f-card:hover::before {
+    opacity: 1;
+  }
+
+  .f-icon {
+    width: 80px;
+    height: 80px;
+    background: linear-gradient(135deg, rgba(124, 58, 237, 0.15) 0%, rgba(124, 58, 237, 0.05) 100%);
+    border-radius: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 28px;
+    font-size: 36px;
+    color: var(--accent);
+    border: 1px solid rgba(124, 58, 237, 0.2);
+    transition: all var(--transition);
+  }
+
+  .f-card:hover .f-icon {
+    transform: scale(1.1) rotate(5deg);
+    background: linear-gradient(135deg, var(--accent) 0%, var(--primary) 100%);
+    color: white;
+    box-shadow: 0 10px 25px rgba(124, 58, 237, 0.3);
+  }
+
+  .f-card h3 {
+    font-family: var(--font-display);
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--primary);
+    margin-bottom: 16px;
+    letter-spacing: -0.5px;
+  }
+
+  .f-card p {
+    color: var(--text-soft);
+    font-size: 16px;
+    line-height: 1.7;
+    font-weight: 400;
+  }
+
+  /* ===== RESPONSIVE ===== */
+  @media (max-width: 768px) {
+    .hero { 
+      flex-direction: column !important; 
+      text-align: center; 
+      padding-top: 60px !important;
+      padding-bottom: 40px !important;
+      gap: 30px !important;
+    }
+    .hero-content, .hero-image { 
+      width: 100% !important; 
+      max-width: 100% !important;
+      flex: none !important;
+    }
+    .hero-content { align-items: center; }
+    .hero-btns { justify-content: center; }
+    .hero-title { font-size: 42px; }
+    .hero-desc { max-width: 100%; }
+    
+    .feature-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .features {
+      padding: 60px 5% 80px;
+    }
+    
+    .f-card {
+      padding: 36px 28px;
+    }
+  }
+
+
+
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <div class="hero-content">
+    <div class="hero-badge">
+      <i class="fas fa-sparkles"></i> Enterprise AI Governance
+    </div>
+    <h1 class="hero-title">Self-Auditing SentinelAI</h1>
+    <p class="hero-desc">SentinelAI is a professional platform designed to audit and monitor your machine learning models in real-time, ensuring transparency, fairness, and reliability in every prediction.</p>
+    <div class="hero-btns">
+      <a href="/dashboard" class="btn btn-primary">Open Dashboard</a>
+      <a href="/about" class="btn btn-outline" style="background: white; border: 1px solid var(--glass-border);">Learn More <i class="fas fa-arrow-right"></i></a>
+    </div>
+  </div>
+  <div class="hero-image">
+    <img src="{{ url_for('static', filename='images/hero_ai_premium.png') }}" alt="AI Sentry Illustration">
+  </div>
+</section>
+
+<section class="features">
+    <span class="section-label">Core Capabilities</span>
+    <h2 class="section-title">The Future of AI Auditing</h2>
+    
+    <div class="feature-grid">
+        <div class="f-card">
+            <div class="f-icon"><i class="fas fa-chart-line"></i></div>
+            <h3 style="color: var(--primary); margin-bottom: 15px;">Real-time Monitoring</h3>
+            <p style="color: var(--text-soft); font-size: 15px;">Track every prediction, confidence score, and latency metric in real-time with our glassmorphic dashboard.</p>
+        </div>
+        <div class="f-card">
+            <div class="f-icon"><i class="fas fa-search-plus"></i></div>
+            <h3 style="color: var(--primary); margin-bottom: 15px;">Drift Detection</h3>
+            <p style="color: var(--text-soft); font-size: 15px;">Identify silent model failures and data shifts before they impact your business decision making.</p>
+        </div>
+        <div class="f-card">
+            <div class="f-icon"><i class="fas fa-user-shield"></i></div>
+            <h3 style="color: var(--primary); margin-bottom: 15px;">Bias & Ethics Audit</h3>
+            <p style="color: var(--text-soft); font-size: 15px;">Automated fairness checks ensure your AI remains unbiased and follows ethical deployment guidelines.</p>
+        </div>
+    </div>
+</section>
+{% endblock %}

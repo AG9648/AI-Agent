@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block title %}Join Us | SentinelAI{% endblock %}
+
+{% block extra_css %}
+<style>
+  .auth-wrapper {
+    min-height: calc(100vh - 80px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: url('/static/images/signup_bg.png') no-repeat center center;
+    background-size: cover;
+    padding: 60px 5%;
+    position: relative;
+  }
+  .auth-wrapper::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(43, 0, 102, 0.3), rgba(0, 0, 0, 0.2));
+    z-index: 1;
+  }
+  .auth-card {
+    position: relative;
+    z-index: 2;
+    width: 100%;
+    max-width: 500px;
+    background: rgba(255, 255, 255, 0.8) !important;
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="auth-wrapper">
+    <div class="glass-card auth-card">
+        <h1 style="font-family: var(--font-display); font-size: 28px; color: var(--primary); margin-bottom: 10px; text-align: center;">Join SentinelAI</h1>
+        <p style="text-align: center; color: var(--text-soft); margin-bottom: 30px;">Start monitoring your AI models with precision.</p>
+        
+        {% with messages = get_flashed_messages() %}
+          {% if messages %}
+            {% for message in messages %}
+              <div style="background: #FEE2E2; color: #991B1B; padding: 12px; border-radius: var(--radius-md); margin-bottom: 20px; font-size: 14px;">
+                {{ message }}
+              </div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        <form method="POST" action="/sign_up" style="display: flex; flex-direction: column; gap: 20px;">
+            <div style="display: flex; gap: 15px;">
+                <div style="display: flex; flex-direction: column; gap: 8px; flex: 1;">
+                    <label style="font-size: 14px; font-weight: 600; color: var(--primary);">First Name</label>
+                    <input type="text" name="first_name" placeholder="John" required style="padding: 12px 16px; border-radius: var(--radius-md); border: 1px solid var(--glass-border); background: var(--bg-white); width: 100%;">
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 8px; flex: 1;">
+                    <label style="font-size: 14px; font-weight: 600; color: var(--primary);">Last Name</label>
+                    <input type="text" name="last_name" placeholder="Doe" required style="padding: 12px 16px; border-radius: var(--radius-md); border: 1px solid var(--glass-border); background: var(--bg-white); width: 100%;">
+                </div>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+                <label style="font-size: 14px; font-weight: 600; color: var(--primary);">Work Email</label>
+                <input type="email" name="email" placeholder="john@company.com" required style="padding: 12px 16px; border-radius: var(--radius-md); border: 1px solid var(--glass-border); background: var(--bg-white);">
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+                <label style="font-size: 14px; font-weight: 600; color: var(--primary);">Password</label>
+                <input type="password" name="password" placeholder="••••••••" required style="padding: 12px 16px; border-radius: var(--radius-md); border: 1px solid var(--glass-border); background: var(--bg-white);">
+            </div>
+            <button type="submit" class="btn btn-primary" style="margin-top: 10px; width: 100%;">Create Account</button>
+        </form>
+        
+        <p style="text-align: center; font-size: 14px; color: var(--text-soft); margin-top: 30px;">
+            Already have an account? <a href="/sign_in" style="color: var(--accent); font-weight: 600; text-decoration: none;">Sign in</a>
+        </p>
+    </div>
+</div>
+{% endblock %}

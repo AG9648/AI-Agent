@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+
+{% block title %}About | SentinelAI - Professional AI Governance{% endblock %}
+
+{% block extra_css %}
+<style>
+  /* ===== ABOUT HERO ===== */
+  .about-hero {
+    height: 50vh;
+    min-height: 400px;
+    background: linear-gradient(rgba(43, 0, 102, 0.4), rgba(43, 0, 102, 0.4)), url("{{ url_for('static', filename='images/sentinel_about_hero.png') }}");
+    background-size: cover;
+    background-position: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    color: white;
+    margin-bottom: 40px;
+    border-radius: 0 0 40px 40px;
+    box-shadow: 0 20px 40px rgba(43, 0, 102, 0.1);
+  }
+
+  .about-hero-content {
+    max-width: 800px;
+    padding: 0 5%;
+  }
+
+  .about-hero-content h1 {
+    font-family: var(--font-display);
+    font-size: clamp(36px, 6vw, 64px);
+    font-weight: 800;
+    margin-bottom: 20px;
+    letter-spacing: -2px;
+    line-height: 1.1;
+  }
+
+  /* ===== SECTION LAYOUT ===== */
+  .container {
+    padding: 20px 5% 40px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  .section-block {
+    margin-bottom: 40px;
+  }
+  .section-block:last-child {
+    margin-bottom: 0px;
+  }
+
+  .sub-title {
+    color: var(--accent);
+    font-weight: 800;
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 15px;
+    display: block;
+    text-align: center;
+  }
+
+  .main-title {
+    font-family: var(--font-display);
+    font-size: 38px;
+    color: var(--primary);
+    margin-bottom: 30px;
+    text-align: center;
+    letter-spacing: -1px;
+  }
+
+  .glass-body {
+    background: var(--glass-white);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-xl);
+    padding: 60px;
+    box-shadow: var(--shadow-soft);
+    line-height: 1.8;
+    color: var(--text-soft);
+    font-size: 18px;
+    margin-bottom: 40px;
+  }
+
+  .glass-body p { margin-bottom: 25px; }
+
+  /* ===== PILLARS GRID ===== */
+  .pillar-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 30px;
+  }
+
+  .pillar-card {
+    background: white;
+    padding: 40px;
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--shadow-soft);
+    transition: var(--transition);
+  }
+
+  .pillar-card:hover {
+    transform: translateY(-10px);
+    box-shadow: var(--shadow-hover);
+    border-color: var(--accent);
+  }
+
+  .pillar-icon {
+    font-size: 40px;
+    color: var(--accent);
+    margin-bottom: 20px;
+  }
+
+  .pillar-card h3 { 
+    color: var(--primary); 
+    margin-bottom: 15px; 
+    font-size: 24px; 
+    font-family: var(--font-display);
+    font-weight: 700;
+  }
+  
+  .pillar-card p { 
+    font-size: 16px; 
+    color: var(--text-soft); 
+    line-height: 1.6;
+  }
+
+  /* ===== TECH STACK ===== */
+  .tech-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: center;
+    margin-top: 40px;
+  }
+
+  .tech-pill {
+    padding: 10px 24px;
+    background: var(--bg-lavender);
+    color: var(--primary);
+    border-radius: 100px;
+    font-weight: 600;
+    font-size: 14px;
+    border: 1px solid rgba(124, 58, 237, 0.1);
+  }
+
+  @media (max-width: 768px) {
+    .glass-body { padding: 30px; }
+    .about-hero { height: 40vh; }
+  }
+
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="about-hero">
+  <div class="about-hero-content">
+    <span style="text-transform: uppercase; letter-spacing: 4px; font-weight: 700; font-size: 14px; opacity: 0.8; margin-bottom: 10px; display: block;">Our Mission</span>
+    <h1>Redefining AI Trust & Model Integrity</h1>
+    <p style="font-size: 20px; opacity: 0.9;">Building the future of autonomous, ethical, and reliable machine learning systems.</p>
+  </div>
+</section>
+
+<div class="container">
+  
+  <section class="section-block">
+    <span class="sub-title">Foundations</span>
+    <h2 class="main-title">Strategic Model Oversight</h2>
+    <div class="glass-body">
+      <p>In the evolving enterprise landscape, machine learning models are the core of intelligent decision-making. However, models in production often suffer from silent failures, data drift, and hidden biases. <strong>SentinelAI</strong> provides the critical oversight required to ensure these systems remain reliable and ethical at scale.</p>
+      <p>By utilizing the <strong>Model Context Protocol (MCP)</strong>, we establish a secure, standardized auditing layer. Our approach enables independent verification and real-time intervention without compromising data security or operational efficiency.</p>
+    </div>
+  </section>
+
+  <section class="section-block">
+    <span class="sub-title">Operational Excellence</span>
+    <h2 class="main-title">The SentinelAI Advantage</h2>
+    <div class="pillar-grid">
+      <div class="pillar-card">
+        <div class="pillar-icon"><i class="fas fa-shield-halved"></i></div>
+        <h3>Model Integrity</h3>
+        <p>Real-time autonomous auditing of every prediction. Our agents detect performance degradation before it impacts your bottom line.</p>
+      </div>
+      <div class="pillar-card">
+        <div class="pillar-icon"><i class="fas fa-scale-balanced"></i></div>
+        <h3>Ethical Compliance</h3>
+        <p>Continuous monitoring for algorithmic bias and fairness. We ensure your AI aligns with global ethical standards and regulations.</p>
+      </div>
+      <div class="pillar-card">
+        <div class="pillar-icon"><i class="fas fa-bolt"></i></div>
+        <h3>Swift Resolution</h3>
+        <p>Automated alerts and explainable insights. When drift occurs, we provide the "why" and "how" to fix it instantly.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section-block">
+    <span class="sub-title">Tech Ecosystem</span>
+    <h2 class="main-title">Built on Robust Foundations</h2>
+    <div class="glass-body" style="text-align: center;">
+      <p>SentinelAI integrates seamlessly with modern ML workflows, providing a unified oversight layer that scales with your infrastructure.</p>
+      <div class="tech-pills">
+        <div class="tech-pill">Model Context Protocol (MCP)</div>
+        <div class="tech-pill">Python ML Ecosystem</div>
+        <div class="tech-pill">Real-time Analytics</div>
+        <div class="tech-pill">Flask Backend</div>
+      </div>
+    </div>
+  </section>
+  
+</div>
+{% endblock %}
