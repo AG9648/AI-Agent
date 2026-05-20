@@ -209,8 +209,7 @@
     <ul class="nav-links">
       <li><a href="/">Home</a></li>
       <li><a href="/about">About</a></li>
-      <li><a href="/model">Model</a></li>
-      <li><a href="/dashboard">Dashboard</a></li>
+      <li><a href="/upload">Upload</a></li>
       <li><a href="/data_drift">Data Drift</a></li>
     </ul>
 
@@ -226,6 +225,26 @@
   </nav>
 
   <main class="main-content">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="container mt-3 mb-4" style="max-width: 1200px; margin: 0 auto; padding: 0 5%;">
+          {% for category, message in messages %}
+            <div class="alert alert-{% if category == 'error' %}danger{% else %}{{ category }}{% endif %} alert-dismissible fade show" role="alert" style="border-radius: var(--radius-md); box-shadow: var(--shadow-soft); font-weight: 500;">
+              {% if category == 'error' %}
+                <i class="fa-solid fa-triangle-exclamation me-2"></i>
+              {% elif category == 'success' %}
+                <i class="fa-solid fa-circle-check me-2"></i>
+              {% else %}
+                <i class="fa-solid fa-circle-info me-2"></i>
+              {% endif %}
+              {{ message }}
+              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
     {% block content %}{% endblock %}
   </main>
 

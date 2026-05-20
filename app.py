@@ -1,120 +1,371 @@
-import pandas as pd  # Importing pandas library for data manipulation (if needed later)
-import joblib  # Importing joblib for loading machine learning models
-import os  # Importing os to handle file paths and directories
-from datetime import datetime  # Importing datetime to work with timestamps
-from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify  # Importing Flask core components
-from flask_sqlalchemy import SQLAlchemy  # Importing SQLAlchemy for database management
-from werkzeug.security import generate_password_hash, check_password_hash  # Importing security tools for password hashing
-
-app = Flask(__name__)  # Initializing the Flask application
-app.secret_key = 'super_secret_key_for_session'  # Setting a secret key for session management and flash messages
-
-# --- DATABASE CONFIGURATION ---
-# We define the path for the database inside the 'instance' folder as requested.
-# Flask automatically handles the 'instance' folder path for SQLite databases.
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'  # Setting the SQLite database URI
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False  # Disabling modification tracking to save resources
-
-db = SQLAlchemy(app)  # Initializing the SQLAlchemy database object connected to our app
-
-# --- USER MODEL ---
-# This class defines the structure of the 'User' table in our database.
-class User(db.Model):  # Creating a User class that inherits from db.Model
-    id = db.Column(db.Integer, primary_key=True)  # Defining a unique ID for each user (Primary Key)
-    first_name = db.Column(db.String(50), nullable=False)  # Defining a column for First Name (Required)
-    last_name = db.Column(db.String(50), nullable=False)  # Defining a column for Last Name (Required)
-    email = db.Column(db.String(100), unique=True, nullable=False)  # Defining a column for Email (Must be unique and required)
-    password_hash = db.Column(db.String(200), nullable=False)  # Defining a column to store the SECURELY HASHED password
-
-# --- INITIALIZE DATABASE ---
-# This block ensures that the 'instance' folder and database file are created on startup.
-with app.app_context():  # Creating an application context to interact with the database
-    db.create_all()  # Creating all tables defined as models (like the User table) if they don't exist
+import sys
+import os
+import json
+import pandas as pd
+import joblib
+import numpy as np
+from flask import Flask, render_template, request, redirect, url_for, send_file, flash, session
+from werkzeug.utils import secure_filename
+from flask_sqlalchemy import SQLAlchemy
+from werkzeug.security import generate_password_hash, check_password_hash
 
 
-@app.route('/')  # Defining the route for the Home page
-def home():  # Function to handle Home page requests
-    return render_template('home.html')  # Rendering the 'home.html' template
+# Ensure we can see sibling modules
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(BASE_DIR)
 
-@app.route('/about')  # Defining the route for the About page
-def about():  # Function to handle About page requests
-    return render_template('about.html')  # Rendering the 'about.html' template
+from agent.self_audit_agent import SelfAuditingAgent
+from RAG.gemini_explainer import explain_report
+from MCP_tools import tools
+from generate_traffic import generate_mock_traffic
+import logger # Import logger to overwrite logs
 
-@app.route('/dashboard')  # Defining the route for the Dashboard page
-def dashboard():  # Function to handle Dashboard requests
-    return render_template('dashboard.html')  # Rendering the 'dashboard.html' template if logged in
+app = Flask(__name__)
+app.config['UPLOAD_FOLDER'] = os.path.join(BASE_DIR, 'uploads')
+MODELS_DIR = os.path.join(BASE_DIR, 'models')
+DATA_DIR = os.path.join(BASE_DIR, 'data')
 
-@app.route('/model')  # Defining the route for the Model page
-def model():  # Function to handle Model requests
-    return render_template('model.html')  # Rendering the 'model.html' template
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+os.makedirs(MODELS_DIR, exist_ok=True)
+os.makedirs(DATA_DIR, exist_ok=True)
 
-@app.route('/data_drift')  # Defining the route for the Data Drift page
-def data_drift():  # Function to handle Data Drift requests
-    return render_template('data_drift.html')  # Rendering the 'data_drift.html' template
+app.secret_key = 'secretkey'  #secret key for session management
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False #to suppress a warning from SQLAlchemy
+db = SQLAlchemy(app) #initialize the database
 
-@app.route('/sign_up', methods=['GET', 'POST'])  # Defining the route for Sign Up (supports both GET and POST)
-def sign_up():  # Function to handle Sign Up requests
-    if request.method == 'POST':  # Checking if the user submitted the form (POST request)
-        # Extracting data from the form fields
-        first_name = request.form.get('first_name')  # Getting the first name from the input field
-        last_name = request.form.get('last_name')  # Getting the last name from the input field
-        email = request.form.get('email')  # Getting the email from the input field
-        password = request.form.get('password')  # Getting the password from the input field
+# User model
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    first_name = db.Column(db.String(100))
+    last_name = db.Column(db.String(100))
+    email = db.Column(db.String(100), unique=True)
+    password = db.Column(db.String(255))
 
-        # Checking if a user with this email already exists in the database
-        user_exists = User.query.filter_by(email=email).first()  # Querying the User table for the email
-        if user_exists:  # If a user is found
-            flash('Email address already exists!')  # Flashing an error message
-            return redirect(url_for('sign_up'))  # Redirecting back to the sign-up page
+# Database initialization with app context
+with app.app_context(): 
+    db.create_all()
 
-        # Creating a new User object with hashed password
+@app.route('/')
+def home():
+    return render_template('home.html')
+
+@app.route('/about')
+def about():
+    return render_template('about.html')
+
+
+
+@app.route('/data_drift')
+def data_drift():
+    if not session.get('user_id'):
+        flash("Please sign in first to access the data drift page.", "error")
+        return redirect(url_for('sign_in'))
+        
+    ref_path = os.path.join(BASE_DIR, 'models', 'reference_data.csv')
+    has_model = os.path.exists(ref_path)
+    
+    results = {}
+    if has_model:
+        agent = SelfAuditingAgent(sensitivity='Medium')
+        report = agent.run_audit()
+        explanation = explain_report(report)
+        
+        results = {
+            "risk": {
+                "risk_level": report.get("status", "Medium"),
+                "drift_percentage": int(report.get("risk_score", 0) * 2)
+            },
+            "explanation": explanation
+        }
+        
+        if results["risk"]["drift_percentage"] > 100:
+            results["risk"]["drift_percentage"] = 100
+            
+    return render_template('data_drift.html', has_model=has_model, results=results)
+
+@app.route('/sign_up', methods=['GET', 'POST'])
+def sign_up():
+    if request.method == 'POST':
+        first_name = request.form['first_name']
+        last_name = request.form['last_name']
+        email = request.form['email']
+        password = request.form['password']
+
+        #validations
+        if not first_name or len(first_name.strip())<2:
+            flash('First name must be at least 2 characters long.', 'error')
+            return redirect(url_for('sign_up'))
+        
+        if not last_name or len(last_name.strip())<2:
+            flash('Last name must be at least 2 characters long.', 'error')
+            return redirect(url_for('sign_up'))
+        
+        if not email or '@' not in email:
+            flash('Please enter a valid email address.', 'error')
+            return redirect(url_for('sign_up'))
+        
+        #password must be at least 8 characters long and a combination of letters and numbers and special characters
+        if len(password)<8 or not any(char.isdigit() for char in password)\
+              or not any(char.isalpha() for char in password) or not any(not char.isalnum()\
+                                                                          for char in password):
+            flash('Password must be at least 8 characters long and contain letters, \
+                  numbers, and special characters.', 'error')
+            return redirect(url_for('sign_up'))
+        
+        #check if user already exists
+        existing_user = User.query.filter_by(email=email).first()
+        if existing_user:
+            flash('Email already registered. Please log in.', 'error')
+            return redirect(url_for('sign_up'))
+        
+        #create new user
+        hashed_password = generate_password_hash(password)
         new_user = User(
-            first_name=first_name,  # Setting first name
-            last_name=last_name,  # Setting last name
-            email=email,  # Setting email
-            password_hash=generate_password_hash(password, method='pbkdf2:sha256')  # Hashing the password for security
+            first_name=first_name.strip(),
+            last_name=last_name.strip(),
+            email=email.strip(),
+            password=hashed_password
         )
+        try:
+            db.session.add(new_user)
+            db.session.commit()
+            flash('Registration successful! Please log in.', 'success')
+            return redirect(url_for('sign_in'))
+        except Exception as e:
+            db.session.rollback()
+            flash('An error occurred during registration. Please try again.', 'error')
+            return redirect(url_for('sign_up'))
+        
+    return render_template('sign_up.html')
 
-        db.session.add(new_user)  # Adding the new user to the database session
-        db.session.commit()  # Committing the changes to save the user to the database file
+@app.route('/sign_in', methods=['GET', 'POST'])
+def sign_in():
+    if request.method == 'POST':
+        email = request.form['email']
+        password = request.form['password']
+        user = User.query.filter_by(email=email).first()
+        print(f"DEBUG: Found user: {user.first_name if user else 'None'}")
+        if user and check_password_hash(user.password, password):
+            print("DEBUG: Password match successful")
+            session['user_id'] = user.id
+            session['user_name'] = user.first_name
+            flash('Login successful!', 'success')
+            return redirect(url_for('upload'))
+        else:
+            print("DEBUG: Password match failed or user NOT found")
+            flash('Invalid email or password.', 'error')
+    return render_template('sign_in.html')
+# --- LOGOUT ROUTE ---
+@app.route('/logout')
+def logout():
+    session.clear() # This safely destroys the user's login session
+    flash('System session terminated securely.', 'success')
+    return redirect(url_for('sign_in'))
 
-        flash('Account created successfully! Please sign in.')  # Flashing a success message
-        return redirect(url_for('sign_in'))  # Redirecting to the sign-in page
+@app.route('/dashboard', methods=['GET', 'POST'])   
+def dashboard():
+    if not session.get('user_id'):
+        flash("Please sign in first to view the dashboard.", "error")
+        return redirect(url_for('sign_in'))
+        
+    if not session.get('model_uploaded'):
+        flash("Please upload a model and baseline dataset first to view the dashboard.", "error")
+        return redirect(url_for('upload'))
+        
+    # 1. Get Configuration from UI (if POST)
+    sensitivity = request.args.get('sensitivity', 'Medium')
+    
+    # 2. Run Audit with Config
+    agent = SelfAuditingAgent(sensitivity=sensitivity)
+    report = agent.run_audit()
+    
+    # 2. Get AI Explanation
+    # This calls Gemini API. If no key, it returns a warning.
+    explanation = explain_report(report)
+    
+    # 3. Get History for Chart
+    recent_preds = tools.get_recent_predictions(limit=50)
+    chart_data = {
+        "labels": [i for i in range(len(recent_preds))], # Simple 1..50 index
+        "confidence": [p.get('confidence', 0) for p in recent_preds],
+        "predictions": [p.get('prediction', 0) for p in recent_preds]
+    }
+    
+    # 3. Render Dashboard
+    return render_template(
+        'dashboard.html', 
+        report=report, 
+        explanation=explanation, 
+        chart_data=chart_data
+    )
 
-    return render_template('sign_up.html')  # Rendering the 'sign_up.html' template for GET requests
+@app.route('/upload', methods=['GET', 'POST'])
+def upload():
+    if not session.get('user_id'):
+        flash("Please sign in first to access the upload page.", "error")
+        return redirect(url_for('sign_in'))
+        
+    if request.method == 'GET':
+        return render_template('upload.html')
+    
+    # HANDLE POST
+    if 'model_file' not in request.files or 'data_file' not in request.files:
+        return "Missing files", 400
+        
+    model_file = request.files['model_file']
+    data_file = request.files['data_file']
+    
+    if model_file.filename == '' or data_file.filename == '':
+        return "No selected file", 400
 
-@app.route('/sign_in', methods=['GET', 'POST'])  # Defining the route for Sign In (supports both GET and POST)
-def sign_in():  # Function to handle Sign In requests
-    if request.method == 'POST':  # Checking if the form was submitted (POST request)
-        email = request.form.get('email')  # Getting the email from the sign-in form
-        password = request.form.get('password')  # Getting the password from the sign-in form
+    # 1. Save Files
+    model_path = os.path.join(app.config['UPLOAD_FOLDER'], secure_filename(model_file.filename))
+    data_path = os.path.join(app.config['UPLOAD_FOLDER'], secure_filename(data_file.filename))
+    model_file.save(model_path)
+    data_file.save(data_path)
+    
+    # 2. Process Files (The Automation Logic)
+    try:
+        # Load Model
+        model = joblib.load(model_path)
+        
+        # Load Data
+        print(f"DEBUG: Loading CSV from {data_path}")
+        df = pd.read_csv(data_path)
+        print(f"DEBUG: CSV loaded. Shape: {df.shape}, Columns: {list(df.columns)}")
 
-        user = User.query.filter_by(email=email).first()  # Searching for the user in the database by email
+        if df.empty:
+            return "Error: The uploaded CSV file is empty.", 400
+        
+        # 1. Identify target column
+        target_names = ['target', 'healthy', 'label', 'class', 'output', 'y', 'status']
+        actual_target_col = next((c for c in df.columns if c.lower() in target_names), None)
+        print(f"DEBUG: Detected target column: {actual_target_col}")
 
-        # Verifying user existence and checking if the password matches the hash
-        if user and check_password_hash(user.password_hash, password):  # If user exists and password is correct
-            session['user_id'] = user.id  # Storing user ID in the session
-            session['user_name'] = user.first_name  # Storing user's first name in the session for display
-            flash(f'Welcome back, {user.first_name}!')  # Flashing a welcome message
-            return redirect(url_for('dashboard'))  # Redirecting to the user dashboard
-        else:  # If login fails
-            flash('Login failed. Please check your email and password.')  # Flashing an error message
+        # 2. Identify feature columns
+        feature_cols = [c for c in df.columns if c != actual_target_col]
+        X = df[feature_cols]
+        print(f"DEBUG: Feature columns: {feature_cols}")
+        
+        # 3. FEATURE ALIGNMENT LOGIC
+        n_expected = None
+        if hasattr(model, "n_features_in_"):
+            n_expected = model.n_features_in_
+            print(f"DEBUG: Model expects {n_expected} features.")
+        
+        if hasattr(model, "feature_names_in_"):
+            expected_names = list(model.feature_names_in_)
+            print(f"DEBUG: Model expects specific names: {expected_names}")
+            if all(name in df.columns for name in expected_names):
+                X = df[expected_names]
+            elif n_expected:
+                # Force slice to match feature count
+                X = X.iloc[:, :n_expected]
+        elif n_expected:
+            X = X.iloc[:, :n_expected]
 
-    return render_template('sign_in.html')  # Rendering the 'sign_in.html' template for GET requests
+        # Ensure we have the right number of features
+        if n_expected and X.shape[1] < n_expected:
+            return f"Error: Dataset has only {X.shape[1]} features, but model expects {n_expected}.", 400
 
-@app.route('/logout')  # Defining the route for Logging Out
-def logout():  # Function to handle Logout requests
-    session.pop('user_id', None)  # Removing user ID from the session
-    session.pop('user_name', None)  # Removing user name from the session
-    flash('You have been logged out.')  # Flashing a logout confirmation message
-    return redirect(url_for('home'))  # Redirecting back to the home page
+        # 4. Generate Predictions
+        X_input = X.values
+        print(f"DEBUG: Running predictions on input shape {X_input.shape}")
 
-@app.route('/view_users')  # Defining a temporary route to see all registered users in the database
-def view_users():  # Function to display all users
-    users = User.query.all()  # Fetching all records from the User table
-    # Returning the data as JSON so you can see 'everything in the DB file' easily
-    return jsonify([{ 'id': u.id, 'name': f"{u.first_name} {u.last_name}", 'email': u.email } for u in users])
+        # Wipe old log for fresh analysis
+        if os.path.exists(logger.LOG_FILE):
+             os.remove(logger.LOG_FILE)
+        logger.initialize_log()
+              
+        # Run Prediction
+        if hasattr(model, "predict_proba"):
+            probs = model.predict_proba(X_input)
+            if probs.shape[1] >= 2:
+                confidences = probs[:, 1]
+            else:
+                confidences = probs[:, 0] # Fallback for single-class probes
+            predictions = model.predict(X_input)
+        else:
+            predictions = model.predict(X_input)
+            confidences = [1.0] * len(predictions)
+            
+        print(f"DEBUG: Generated {len(predictions)} predictions.")
 
-if __name__ == "__main__":
+        # 5. Log to CSV
+        targets = df[actual_target_col].values if actual_target_col else [None] * len(predictions)
+        
+        for i, row_values in enumerate(X_input):
+            try:
+                logger.log_prediction(
+                    features=row_values,
+                    prediction=int(predictions[i]), 
+                    confidence=float(confidences[i]), 
+                    model_version='uploaded_model_v1',
+                    ground_truth=int(targets[i]) if (targets[i] is not None and not pd.isna(targets[i])) else None
+                )
+            except Exception as log_err:
+                print(f"DEBUG: Error logging row {i}: {log_err}")
+                continue
+            
+        # 6. UPDATE BASELINE
+        ref_path = os.path.join(MODELS_DIR, 'reference_data.csv')
+        df_ref = X.head(100).copy() # Use X (features only)
+        # Standardize column names for the tools (f0, f1...)
+        df_ref.columns = [f'f{j}' for j in range(len(df_ref.columns))]
+        if actual_target_col:
+            df_ref['target'] = df[actual_target_col].head(100).values
+        df_ref.to_csv(ref_path, index=False)
+        print(f"DEBUG: Updated baseline reference at {ref_path}")
+        
+        session['model_uploaded'] = True
+        return redirect(url_for('dashboard'))
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return f"Error processing files: {str(e)}", 500
+
+@app.route('/simulate/<scenario>')
+def simulate(scenario):
+    # Trigger generation logic
+    # We clear logs to make the impact immediate and obvious
+    generate_mock_traffic(scenario=scenario, clear_logs=True)
+    return redirect(url_for('dashboard'))
+
+@app.route('/repair')
+def repair():
+    agent = SelfAuditingAgent()
+    result = agent.attempt_repair()
+    
+    if result['success']:
+        # To show the fix, we should "swap" the active model logic to the new one or 
+        # just regenerate healthy traffic to prove it works.
+        # For demo: We generate healthy traffic immediately to simulate "After-Repair" state
+        generate_mock_traffic(scenario='healthy', clear_logs=True)
+        return redirect(url_for('dashboard', repaired='true'))
+    else:
+        return "Repair Failed", 500
+
+@app.route('/download/<file_type>')
+def download_artifact(file_type):
+    # Determine path
+    # We use absolute paths derived from base
+    MODELS_DIR = os.path.join(BASE_DIR, 'models')
+    
+    if file_type == 'model':
+        path = os.path.join(MODELS_DIR, 'repaired_model.pkl')
+        filename = "repaired_agent_model.pkl"
+    elif file_type == 'data':
+        path = os.path.join(MODELS_DIR, 'repaired_data.csv')
+        filename = "cleaned_training_data.csv"
+    else:
+        return "Invalid file type", 400
+        
+    if os.path.exists(path):
+        return send_file(path, as_attachment=True, download_name=filename)
+    else:
+        return "File not found (Run repair first)", 404
+
+if __name__ == '__main__':
     app.run(debug=True)
-

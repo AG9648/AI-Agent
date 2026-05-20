@@ -1,88 +1,118 @@
-import sys # For system paths and configurations.
-import os # For checking files and environment variables.
 
-# Path Setup: Connecting the modules
-sys.path.append(os.getcwd()) # Ensure Python searches the current directory for our modules.
+import json
+import os
+import sys
 
-from MCP_tools import tools # Import the data-fetching layer (Module 2).
-from MCP_tools import repair_kit # Import the automated repair layer (Module 4).
+# Ensure we can import from parent directory
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# The Self-Auditing Agent Class (Module 3 - The 'Brain')
-class SelfAuditAgent: # Create a class that makes decisions based on data.
-    def __init__(self): # Initialize the agent.
-        self.report = {} # Storage for our final findings and risk scores.
+from MCP_tools import tools
 
-    # Main Function: Executes a full diagnostic cycle
-    def run_audit(self): # Define the audit process.
-        print("\n[Audit Agent] Running self-diagnostic sweep...") # Status update.
+class SelfAuditingAgent:
+    def __init__(self, sensitivity="Medium"):
+        self.name = "MCP-Audit-Core-v1"
+        self.sensitivity_map = {
+            "Low": 0.5,
+            "Medium": 1.0, 
+            "High": 1.5
+        }
+        self.multiplier = self.sensitivity_map.get(sensitivity, 1.0)
+        print(f"[{self.name}] Initialized with {sensitivity} sensitivity (Multiplier: {self.multiplier})")
 
-        # Fetch metrics using our safe Tools layer (Module 2)
-        health = tools.get_current_model_health() # Get avg confidence and accuracy.
-        drift = tools.check_feature_drift() # Get Z-score drift report.
+    def run_audit(self):
+        """
+        Main execution loop for the agent.
+        """
+        report = {
+            "status": "PASS", 
+            "issues": [],
+            "metrics": {
+                "fail_rate": 0, # Legacy key for UI
+                "pos_rate": 0
+            },
+            "risk_score": 0,
+            "config_used": {"sensitivity": self.multiplier}
+        }
 
-        # Evaluation Logic: Converting numbers into labels
-        issues = [] # List to accumulate detected problems.
-        risk_score = 0 # Numerical indicator of how dangerous things are.
+        print(f"[{self.name}] Starting Audit Cycle...")
 
-        # 1. Model Health Check (Confidence threshold < 0.6)
-        conf = health.get('avg_confidence', 0) # Get confidence value.
-        if conf < 0.6: # Check if it's below our 60% standard.
-            issues.append(f"Confidence Crisis: {conf}") # Log the specific issue.
-            risk_score += 40 # Add heavy penalty to the risk score.
+        # --- STEP 1: Check General Health ---
+        health = tools.get_current_model_health()
+        report["metrics"]["health"] = health
+        
+        # Rule: If confidence drops below 0.6, flag it.
+        if health.get("avg_confidence", 1.0) < 0.6:
+            report["issues"].append("Low Average Confidence detected.")
+            report["risk_score"] += (20 * self.multiplier)
 
-        # 2. Feature Drift Check (Z-score > 2.0)
-        if drift['status'] == 'success': # If we successfully analyzed drift...
-            for feat, data in drift['drifts'].items(): # iterate through every feature.
-                if data['z_score'] > 2.0: # If any feature's Z-score is over 2...
-                    issues.append(f"Drift Detected: {feat} (Score: {data['z_score']})") # Record it.
-                    risk_score += 20 # Add risk for every drifted feature found.
+        # --- STEP 2: Check Drift ---
+        drift = tools.check_feature_drift(recent_window=50)
+        report["metrics"]["drift"] = drift
+        
+        drift_count = 0
+        if isinstance(drift, dict) and "error" not in drift and "status" not in drift:
+            for feature, data in drift.items():
+                if isinstance(data, dict) and data.get("is_drifting"):
+                    drift_count += 1
+                    report["issues"].append(f"Major Data Drift detected in {feature} (Score: {data['drift_score']:.2f})")
+        elif isinstance(drift, dict) and "error" in drift:
+            report["issues"].append(f"Audit limitation: {drift['error']}")
+        elif isinstance(drift, dict) and "status" in drift:
+             report["issues"].append(f"System Monitor: {drift['status']}")
+        
+        if drift_count > 0:
+            report["risk_score"] += (drift_count * 15 * self.multiplier) 
 
-        # 3. Accuracy / Failure Check (Below 0.5)
-        acc = health.get('accuracy', 0) # Read current model accuracy.
-        if acc < 0.5: # If accuracy is below 50%...
-            issues.append(f"High Failure Rate: {acc}") # Record it as a critical failure.
-            risk_score += 50 # Add the highest risk penalty.
+        # --- STEP 3: Smart Performance Check ---
+        # Get recent performance from health data
+        accuracy = health.get("estimated_accuracy")
+        
+        # Get recent prediction stats
+        recents = tools.get_recent_predictions(limit=50)
+        if recents:
+            # Check for label imbalance (formerly "failure rate")
+            # We only penalize this if accuracy is also low or unknown.
+            positives = [r for r in recents if r['prediction'] == 1]
+            pos_rate = len(positives) / len(recents)
+            report["metrics"]["pos_rate"] = pos_rate
+            report["metrics"]["fail_rate"] = pos_rate # Legacy alias for dashboard UI
 
-        # Status Selection: Based on total Risk Score
-        if risk_score >= 70: # If the risk is extreme...
-            status = "CRITICAL" # Mark as urgent repair needed.
-        elif risk_score >= 30: # If there are notable issues...
-            status = "WARNING" # Mark as needs monitoring.
-        else: # if the score is low...
-            status = "PASS" # Everything is healthy.
+            # If accuracy is known and HIGH, we reduce the total risk score (Incentive for good models)
+            if accuracy is not None and accuracy > 0.9:
+                report["risk_score"] *= 0.25 # Huge discount for high accuracy
+                report["issues"] = [opt for opt in report["issues"] if "Drift" not in opt] # Accuracy trumps drift
+                if not report["issues"]:
+                    report["recommendation"] = "Model is performing excellently with high accuracy."
 
-        # Save findings in the internal report object
-        self.report = { # Create the report dictionary.
-            "status": status, # Final verdict label.
-            "risk_score": risk_score, # Final calculated danger number.
-            "issues": issues, # List of everything we found wrong.
-            "metrics": { "health": health, "drift": drift } # Reference to raw data.
-        } # Close dictionary.
+            # But if accuracy is LOW or Unknown, and labeling is highly biased (>80%)
+            elif pos_rate > 0.8 or pos_rate < 0.05:
+                report["issues"].append(f"Highly skewed predictions ({pos_rate:.1%}). Possible data bias.")
+                report["risk_score"] += (15 * self.multiplier)
 
-        # Auto-Repair: Triggering the fix
-        if status == "CRITICAL": # If the situation is urgent...
-            self.attempt_repair() # Try to fix the problem automatically.
+        # Round risk score
+        report["risk_score"] = int(report["risk_score"])
 
-        return self.report # Return the complete analysis for further use.
+        # --- Final Scoring ---
+        if report["risk_score"] > 40:
+            report["status"] = "CRITICAL"
+            report["recommendation"] = "Immediate Repair Required. Run Auto-Heal."
+        elif report["risk_score"] > 10:
+            report["status"] = "WARNING"
+            report["recommendation"] = "Monitor closely. Check data headers."
+        
+        print(f"[{self.name}] Audit Complete. Status: {report['status']}")
+        return report
 
-    
-    # Action Logic: Calls the Repair Kit
-    def attempt_repair(self): # Function triggered by the agent's decision.
-        print("[Audit Agent] !!! CRITICAL FAIL !!! Requesting automated repair...") # Alert.
-        success = repair_kit.perform_auto_repair() # Call the Module 4 repair tool.
-        if success: # If the repair tool finished correctly...
-            print("[Audit Agent] Repair successful. System status reset to monitoring.") # Log.
-        else: # If the repair tool failed...
-            print("[Audit Agent] Repair failed. Manual engineering intervention required.") # Alert.
+    def attempt_repair(self):
+        """
+        Calls the Repair Kit to fix the system.
+        """
+        from MCP_tools import repair_kit
+        return repair_kit.perform_auto_repair()
 
-# Demonstration: Running the code directly
-if __name__ == "__main__": # Entry point for local testing.
-    agent = SelfAuditAgent() # Create the agent.
-    results = agent.run_audit() # Perform the audit.
-    
-    # Print the findings clearly
-    print("\n--- FINAL SYSTEM REPORT ---") # Header.
-    print(f"SYSTEM STATUS: {results['status']}") # Display status.
-    print(f"TOTAL RISK: {results['risk_score']}/100") # Display score.
-    print(f"PROBLEMS: {results['issues']}") # List issues.
-    print("---------------------------\n") # Footer.
+
+if __name__ == "__main__":
+    agent = SelfAuditingAgent()
+    result = agent.run_audit()
+    print("\n--- FINAL AGENT REPORT ---")
+    print(json.dumps(result, indent=2))
